@@ -1,0 +1,67 @@
+{
+  "name": "pi-run-sentinel",
+  "version": "0.0.0",
+  "description": "Run-owned work safety guard for Pi — walking skeleton with in-memory status ledger",
+  "type": "module",
+  "license": "MIT",
+  "author": "eiei114",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "run-sentinel",
+    "safety",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eiei114/pi-run-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eiei114/pi-run-sentinel/issues"
+  },
+  "homepage": "https://github.com/eiei114/pi-run-sentinel#readme",
+  "files": [
+    "extensions/",
+    "lib/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "ci": "npm run typecheck && npm test && npm run pack:check",
+    "pack:check": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "overrides": {
+    "protobufjs": ">=7.6.3 <8.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.84.2",
+    "@earendil-works/pi-ai": "^0.84.2",
+    "@earendil-works/pi-coding-agent": "^0.84.2",
+    "@earendil-works/pi-tui": "^0.84.2",
+    "@types/node": "^26.0.0",
+    "typebox": "latest",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
