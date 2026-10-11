@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { createLedger, formatStatus, snapshotStatus } = await import("../lib/ledger.ts");
+const { createLedger } = await import("../lib/ledger.ts");
+const { formatStatus, snapshotStatus } = await import("../lib/status.ts");
 
 test("createLedger returns default walking-skeleton state", () => {
   const ledger = createLedger();
@@ -33,6 +34,20 @@ test("snapshotStatus exposes guard mode and counts", () => {
     recentDecisionsCount: 1,
     registeredServicesCount: 1,
   });
+});
+
+test("snapshotStatus remains independent of later ledger mutations", () => {
+  const ledger = createLedger();
+  const snapshot = snapshotStatus(ledger);
+
+  ledger.recentDecisions.push({
+    id: "d1",
+    at: "2026-09-15T00:00:00.000Z",
+    summary: "allowed shell probe",
+  });
+
+  assert.equal(snapshot.recentDecisionsCount, 0);
+  assert.equal(snapshotStatus(ledger).recentDecisionsCount, 1);
 });
 
 test("formatStatus renders guard mode and counts", () => {
