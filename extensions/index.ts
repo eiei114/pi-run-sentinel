@@ -6,7 +6,8 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createLedger, formatStatus, snapshotStatus } from "../lib/ledger.ts";
+import { createLedger } from "../lib/ledger.ts";
+import { formatStatus, snapshotStatus } from "../lib/status.ts";
 
 const ledger = createLedger();
 

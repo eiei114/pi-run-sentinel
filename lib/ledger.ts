@@ -24,13 +24,6 @@ export interface RunSentinelLedger {
   registeredServices: RegisteredService[];
 }
 
-export interface RunSentinelStatusSnapshot {
-  policyName: string;
-  guardMode: GuardMode;
-  recentDecisionsCount: number;
-  registeredServicesCount: number;
-}
-
 const DEFAULT_POLICY_NAME = "default";
 const DEFAULT_GUARD_MODE: GuardMode = "monitor";
 
@@ -48,27 +41,6 @@ export function createLedger(
   };
 }
 
-/**
- * Summarize ledger state for `/run-sentinel:status`.
- */
-export function snapshotStatus(ledger: RunSentinelLedger): RunSentinelStatusSnapshot {
-  return {
-    policyName: ledger.policyName,
-    guardMode: ledger.guardMode,
-    recentDecisionsCount: ledger.recentDecisions.length,
-    registeredServicesCount: ledger.registeredServices.length,
-  };
-}
-
-/**
- * Render a human-readable status block from a ledger snapshot.
- */
-export function formatStatus(snapshot: RunSentinelStatusSnapshot): string {
-  return [
-    "Run Sentinel status",
-    `  policy: ${snapshot.policyName}`,
-    `  guard mode: ${snapshot.guardMode}`,
-    `  recent decisions: ${snapshot.recentDecisionsCount}`,
-    `  registered services: ${snapshot.registeredServicesCount}`,
-  ].join("\n");
-}
+// Preserve existing imports while status reporting lives in its own module.
+export { formatStatus, snapshotStatus } from "./status.ts";
+export type { RunSentinelStatusSnapshot } from "./status.ts";
