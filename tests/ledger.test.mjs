@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { createLedger } = await import("../lib/ledger.ts");
+const ledgerApi = await import("../lib/ledger.ts");
+const { createLedger } = ledgerApi;
 const { formatStatus, snapshotStatus } = await import("../lib/status.ts");
 
 test("createLedger returns default walking-skeleton state", () => {
@@ -34,6 +35,11 @@ test("snapshotStatus exposes guard mode and counts", () => {
     recentDecisionsCount: 1,
     registeredServicesCount: 1,
   });
+});
+
+test("ledger keeps its existing status exports as compatibility re-exports", () => {
+  assert.equal(ledgerApi.formatStatus, formatStatus);
+  assert.equal(ledgerApi.snapshotStatus, snapshotStatus);
 });
 
 test("snapshotStatus remains independent of later ledger mutations", () => {

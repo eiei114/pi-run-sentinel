@@ -40,3 +40,7 @@ export function createLedger(
     registeredServices: [],
   };
 }
+
+// Preserve existing imports while status reporting lives in its own module.
+export { formatStatus, snapshotStatus } from "./status.ts";
+export type { RunSentinelStatusSnapshot } from "./status.ts";
