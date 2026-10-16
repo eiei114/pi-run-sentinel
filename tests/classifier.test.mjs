@@ -1,0 +1,80 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+const { classifyShellCommand } = await import("../lib/classifier.ts");
+
+function assertDecision(command, action, reasonCode, evidence) {
+  const result = classifyShellCommand(command);
+
+  assert.equal(result.action, action);
+  assert.equal(result.reasonCode, reasonCode);
+  assert.equal(typeof result.message, "string");
+  assert.ok(result.message.length > 0);
+  assert.deepEqual(result.evidence, evidence);
+  return result;
+}
+
+test("blocks shell background operators without treating foreground operators as hazards", () => {
+  assertDecision("npm test &", "block", "background_operator", ["&"]);
+  assertDecision("npm test && npm run typecheck", "allow", "safe_foreground", []);
+  assertDecision('echo "a & b"', "allow", "safe_foreground", []);
+  assertDecision("npm test 2>&1", "allow", "safe_foreground", []);
+});
+
+test("blocks common detached process forms", () => {
+  assertDecision("nohup npm test", "block", "detached_process", ["nohup"]);
+  assertDecision("disown -a", "block", "detached_process", ["disown"]);
+  assertDecision("Start-Process node", "block", "detached_process", ["Start-Process"]);
+  assertDecision("Start-Process node -Wait", "allow", "safe_foreground", []);
+});
+
+test("blocks CI watchers and generic watch commands", () => {
+  assertDecision(
+    "gh pr checks 123 --watch",
+    "block",
+    "ci_watch_without_deliverable",
+    ["gh pr checks --watch"],
+  );
+  assertDecision("gh run watch 123", "block", "ci_watch_without_deliverable", ["gh run watch"]);
+  assertDecision("watch -n 1 git status", "block", "watch_or_poll_loop", ["watch"]);
+});
+
+test("blocks bash and PowerShell loops that sleep", () => {
+  assertDecision(
+    "while true; do gh pr checks; sleep 5; done",
+    "block",
+    "watch_or_poll_loop",
+    ["loop + sleep"],
+  );
+  assertDecision(
+    "for attempt in 1 2 3; do npm test; sleep 1; done",
+    "block",
+    "watch_or_poll_loop",
+    ["loop + sleep"],
+  );
+  assertDecision(
+    "while ($true) { Start-Sleep -Seconds 5 }",
+    "block",
+    "watch_or_poll_loop",
+    ["loop + sleep"],
+  );
+  assertDecision("sleep 1; npm test", "allow", "safe_foreground", []);
+});
+
+test("warns for ambiguous local server commands", () => {
+  assertDecision("npm run dev", "warn", "service_handoff_candidate", ["npm run dev"]);
+  assertDecision("vite --host 127.0.0.1", "warn", "service_handoff_candidate", ["vite"]);
+  assertDecision("next dev", "warn", "service_handoff_candidate", ["next dev"]);
+  assertDecision(
+    "python -m http.server 8000",
+    "warn",
+    "service_handoff_candidate",
+    ["python -m http.server"],
+  );
+  assertDecision('echo "npm run dev"', "allow", "safe_foreground", []);
+});
+
+test("allows one-shot status snapshots and ordinary foreground commands", () => {
+  assertDecision("gh pr checks 123", "allow", "safe_foreground", []);
+  assertDecision("npm run typecheck", "allow", "safe_foreground", []);
+});
