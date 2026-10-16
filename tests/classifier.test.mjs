@@ -28,6 +28,26 @@ test("blocks common detached process forms", () => {
   assertDecision("Start-Process node -Wait", "allow", "safe_foreground", []);
 });
 
+test("blocks hazards inside nested shell command payloads", () => {
+  assertDecision('bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision("sh -c 'nohup node server.js'", "block", "detached_process", ["nohup"]);
+  assertDecision('cmd /c "start /b node app.js"', "block", "detached_process", ["start /b"]);
+  assertDecision("cmd /c start /b node app.js", "block", "detached_process", ["start /b"]);
+  assertDecision(
+    'pwsh -Command "while ($true) { Start-Sleep -Seconds 5 }"',
+    "block",
+    "watch_or_poll_loop",
+    ["loop + sleep"],
+  );
+  assertDecision(
+    "pwsh -Command while ($true) { Start-Sleep -Seconds 5 }",
+    "block",
+    "watch_or_poll_loop",
+    ["loop + sleep"],
+  );
+  assertDecision('bash -c "npm test"', "allow", "safe_foreground", []);
+});
+
 test("blocks CI watchers and generic watch commands", () => {
   assertDecision(
     "gh pr checks 123 --watch",

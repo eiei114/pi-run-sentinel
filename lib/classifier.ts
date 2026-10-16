@@ -263,6 +263,130 @@ function serviceCandidateEvidence(command: string): string | undefined {
   return undefined;
 }
 
+function shellCommandSegments(command: string): string[][] {
+  const segments: string[][] = [];
+  let tokens: string[] = [];
+  let token = "";
+  let tokenStarted = false;
+  let quote: "'" | '"' | null = null;
+  let escaped = false;
+  const finishToken = () => {
+    if (tokenStarted) tokens.push(token);
+    token = "";
+    tokenStarted = false;
+  };
+  const finishSegment = () => {
+    finishToken();
+    if (tokens.length > 0) segments.push(tokens);
+    tokens = [];
+  };
+
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+
+    if (escaped) {
+      token += char;
+      tokenStarted = true;
+      escaped = false;
+      continue;
+    }
+
+    if (quote !== null) {
+      if (quote === '"' && char === "\\" && /["\\$`]/.test(command[index + 1] ?? "")) {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      else {
+        token += char;
+        tokenStarted = true;
+      }
+      continue;
+    }
+
+    if (char === "\\" && /[\s;&|\r\n'"#\\]/.test(command[index + 1] ?? "")) {
+      escaped = true;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      tokenStarted = true;
+      continue;
+    }
+
+    if (char === "#" && (index === 0 || /\s/.test(command[index - 1]))) {
+      finishSegment();
+      while (index < command.length && command[index] !== "\n" && command[index] !== "\r") index += 1;
+      continue;
+    }
+
+    if (/[;&|\r\n]/.test(char)) {
+      finishSegment();
+      if ((char === "&" || char === "|") && command[index + 1] === char) index += 1;
+    } else if (/\s/.test(char)) {
+      finishToken();
+    } else {
+      token += char;
+      tokenStarted = true;
+    }
+  }
+
+  if (escaped) token += "\\";
+  finishSegment();
+  return segments;
+}
+
+function nestedShellPayload(tokens: string[]): string | undefined {
+  let index = 0;
+
+  while (index < tokens.length) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=.*/.test(tokens[index])) {
+      index += 1;
+      continue;
+    }
+    const wrapper = tokens[index].toLowerCase();
+    if (["sudo", "command", "exec", "time", "nice"].includes(wrapper)) {
+      index += 1;
+      continue;
+    }
+    if (wrapper === "env") {
+      index += 1;
+      while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(tokens[index])) {
+        index += 1;
+      }
+      continue;
+    }
+    break;
+  }
+
+  if (index >= tokens.length) return undefined;
+
+  const executable = tokens[index]
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/\.(?:exe|cmd|bat)$/i, "")
+    .toLowerCase();
+  const args = tokens.slice(index + 1);
+  let commandFlag = -1;
+
+  if (["bash", "sh", "dash", "zsh", "ksh"].includes(executable)) {
+    commandFlag = args.findIndex((arg) =>
+      arg === "-c" || arg === "--command" || /^-[^-]*c[^-]*$/.test(arg),
+    );
+  } else if (["powershell", "pwsh"].includes(executable)) {
+    commandFlag = args.findIndex((arg) => /^[-/]command$/i.test(arg) || /^[-/]c$/i.test(arg));
+  } else if (executable === "cmd") {
+    commandFlag = args.findIndex((arg) => /^\/c$/i.test(arg));
+  }
+
+  if (commandFlag < 0) return undefined;
+  const commandArgs = args.slice(commandFlag + 1);
+  const payload = ["cmd", "powershell", "pwsh"].includes(executable)
+    ? commandArgs.join(" ")
+    : commandArgs[0];
+  return payload?.trim() ? payload : undefined;
+}
+
 function decision(
   action: SentinelAction,
   reasonCode: SentinelReasonCode,
@@ -271,8 +395,7 @@ function decision(
   return { action, reasonCode, message: MESSAGES[reasonCode], evidence };
 }
 
-/** Classify a command string without launching or otherwise inspecting it. */
-export function classifyShellCommand(command: string): ShellCommandDecision {
+function classifyShellCommandDirect(command: string): ShellCommandDecision {
   const searchableCommand = maskQuotedContent(command);
 
   if (hasBackgroundOperator(searchableCommand)) {
@@ -305,4 +428,26 @@ export function classifyShellCommand(command: string): ShellCommandDecision {
   }
 
   return decision("allow", "safe_foreground");
+}
+
+function classifyShellCommandAtDepth(command: string, depth: number): ShellCommandDecision {
+  let result = classifyShellCommandDirect(command);
+  if (depth >= 8) return result;
+
+  for (const tokens of shellCommandSegments(command)) {
+    const payload = nestedShellPayload(tokens);
+    if (!payload) continue;
+
+    const nestedResult = classifyShellCommandAtDepth(payload, depth + 1);
+    const nestedSeverity = nestedResult.action === "block" ? 2 : nestedResult.action === "warn" ? 1 : 0;
+    const currentSeverity = result.action === "block" ? 2 : result.action === "warn" ? 1 : 0;
+    if (nestedSeverity > currentSeverity) result = nestedResult;
+  }
+
+  return result;
+}
+
+/** Classify a command string without launching or otherwise inspecting it. */
+export function classifyShellCommand(command: string): ShellCommandDecision {
+  return classifyShellCommandAtDepth(command, 0);
 }
