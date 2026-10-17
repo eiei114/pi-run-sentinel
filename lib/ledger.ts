@@ -4,12 +4,17 @@
  * Pure data structures and helpers — no Pi runtime APIs.
  */
 
+import type { SentinelAction, SentinelReasonCode } from "./classifier.ts";
+
 export type GuardMode = "off" | "monitor" | "enforce";
 
 export interface SentinelDecision {
   id: string;
   at: string;
   summary: string;
+  action?: SentinelAction;
+  reasonCode?: SentinelReasonCode;
+  evidence?: string[];
 }
 
 export interface RegisteredService {
@@ -25,7 +30,7 @@ export interface RunSentinelLedger {
 }
 
 const DEFAULT_POLICY_NAME = "default";
-const DEFAULT_GUARD_MODE: GuardMode = "monitor";
+const DEFAULT_GUARD_MODE: GuardMode = "enforce";
 
 /**
  * Create a fresh in-memory ledger for the walking skeleton.
