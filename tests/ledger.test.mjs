@@ -33,6 +33,7 @@ test("snapshotStatus exposes guard mode and counts", () => {
     policyName: "strict",
     guardMode: "enforce",
     recentDecisionsCount: 1,
+    recentDecisions: [{ at: "2026-09-15T00:00:00.000Z", summary: "allowed shell probe" }],
     registeredServicesCount: 1,
   });
 });
@@ -61,10 +62,12 @@ test("formatStatus renders guard mode and counts", () => {
     policyName: "default",
     guardMode: "monitor",
     recentDecisionsCount: 0,
+    recentDecisions: [],
     registeredServicesCount: 0,
   });
 
   assert.match(text, /guard mode: monitor/);
   assert.match(text, /recent decisions: 0/);
+  assert.match(text, /last decisions:\n    none/);
   assert.match(text, /registered services: 0/);
 });

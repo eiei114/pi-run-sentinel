@@ -4,21 +4,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Pi package](https://img.shields.io/badge/pi-package-purple.svg)](https://pi.dev/packages)
 
-> Run-owned work safety guard for Pi — walking skeleton with an in-memory status ledger.
+> Run-owned work safety guard for Pi — classifier-backed interception of risky shell tool calls.
 
 ## What this is
 
-`pi-run-sentinel` is the first loadable slice of Run Sentinel. It registers `/run-sentinel:status` and keeps an in-memory ledger with policy name, guard mode, recent decisions, and registered services. Classifier and blocking integration arrive in later slices.
+`pi-run-sentinel` registers `/run-sentinel:status` and classifies Pi's built-in `bash` and `powershell` tool calls before execution. High-confidence detached-work and watch/poll hazards are blocked; ambiguous local server commands are allowed with a warning. Decisions are kept in an in-memory ledger for the current extension runtime.
 
-## Features (slice 01)
+## Features
 
-- `/run-sentinel:status` shows guard mode, recent decision count, and registered service count
-- Pure `lib/ledger.ts` module testable without Pi runtime APIs
+- `/run-sentinel:status` shows guard mode, recent decision count and the latest decisions
+- High-confidence shell hazards are blocked before their tool executes, with a correction explaining a safe alternative
+- Local server candidates remain allowed and produce a visible warning when Pi UI notifications are available
+- Pure classifier and ledger modules are testable without launching shell commands
 - Default guard mode `monitor` with policy `default`
+
+The guard only intercepts pre-execution shell tool calls. It does not enforce pending work at final-response or session-end time, and does not supervise processes after a tool returns.
 
 ## Install
 
-Published npm install is not available in this walking-skeleton slice. Load the package locally for dogfood:
+This package is not published. Load it locally for dogfooding:
 
 ```bash
 cd /path/to/pi-run-sentinel
@@ -44,7 +48,7 @@ Then run:
 /run-sentinel:status
 ```
 
-Expected output includes `guard mode: monitor`, `recent decisions: 0`, and `registered services: 0`.
+Expected output includes `guard mode: monitor`, `recent decisions: 0`, `last decisions:`, and `registered services: 0`.
 
 ## Development
 

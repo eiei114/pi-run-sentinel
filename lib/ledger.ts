@@ -4,12 +4,17 @@
  * Pure data structures and helpers — no Pi runtime APIs.
  */
 
+import type { SentinelAction, SentinelReasonCode } from "./classifier.ts";
+
 export type GuardMode = "off" | "monitor" | "enforce";
 
 export interface SentinelDecision {
   id: string;
   at: string;
   summary: string;
+  action?: SentinelAction;
+  reasonCode?: SentinelReasonCode;
+  evidence?: string[];
 }
 
 export interface RegisteredService {

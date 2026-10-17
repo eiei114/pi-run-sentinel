@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+### Added
+
+- Pre-execution guard for Pi bash and PowerShell tool calls, including visible service warnings and decision history in `/run-sentinel:status`
+
 ## 0.1.0 - Unreleased
 
 ### Fixed
