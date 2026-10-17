@@ -1,6 +1,6 @@
 {
   "name": "pi-run-sentinel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Run-owned work safety guard for Pi — walking skeleton with in-memory status ledger",
   "type": "module",
   "license": "MIT",
