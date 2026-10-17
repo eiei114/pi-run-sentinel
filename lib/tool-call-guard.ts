@@ -31,6 +31,8 @@ export function createToolCallGuard(
   now: () => Date = () => new Date(),
 ): (event: ToolCallEvent, ctx: ExtensionContext) => ToolCallEventResult | undefined {
   return (event, ctx) => {
+    if (ledger.guardMode === "off") return undefined;
+
     const command = shellCommandFromEvent(event);
     if (command === undefined) return undefined;
 
@@ -46,7 +48,7 @@ export function createToolCallGuard(
       evidence,
     });
 
-    if (result.action === "block") {
+    if (result.action === "block" && ledger.guardMode === "enforce") {
       return { block: true, reason: result.message };
     }
 

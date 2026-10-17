@@ -10,6 +10,8 @@ import {
   SessionManager,
   discoverAndLoadExtensions,
 } from "@earendil-works/pi-coding-agent";
+import { createLedger } from "../lib/ledger.ts";
+import { createToolCallGuard } from "../lib/tool-call-guard.ts";
 
 const extensionPath = fileURLToPath(new URL("../extensions", import.meta.url));
 
@@ -114,5 +116,30 @@ test("Pi tool_call guard blocks before execution, records decisions, and reloads
     runner?.invalidate("functional test cleanup");
     reloadedRunner?.invalidate("functional test cleanup");
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("guard modes off, monitor, and enforce control blocking", () => {
+  const event = {
+    type: "tool_call",
+    toolCallId: "mode-block",
+    toolName: "bash",
+    input: { command: "npm test &" },
+  };
+
+  for (const guardMode of ["off", "monitor", "enforce"]) {
+    const ledger = createLedger({ guardMode });
+    const guard = createToolCallGuard(ledger);
+    const result = guard(event, { hasUI: false });
+
+    assert.equal(result?.block ?? false, guardMode === "enforce", `${guardMode} blocking`);
+    assert.equal(
+      ledger.recentDecisions.length,
+      guardMode === "off" ? 0 : 1,
+      `${guardMode} decision recording`,
+    );
+    if (guardMode !== "off") {
+      assert.equal(ledger.recentDecisions[0].action, "block");
+    }
   }
 });
