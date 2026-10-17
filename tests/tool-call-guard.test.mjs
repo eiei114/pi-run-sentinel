@@ -92,6 +92,7 @@ test("Pi tool_call guard blocks before execution, records decisions, and reloads
 
     await runner.getCommand("run-sentinel:status").handler("", runner.createCommandContext());
     const statusText = notifications.at(-1).message;
+    assert.match(statusText, /guard mode: enforce/);
     assert.match(statusText, /recent decisions: 4/);
     assert.match(statusText, /block: background_operator/);
     assert.match(statusText, /warn: service_handoff_candidate/);

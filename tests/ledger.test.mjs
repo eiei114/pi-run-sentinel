@@ -5,11 +5,11 @@ const ledgerApi = await import("../lib/ledger.ts");
 const { createLedger } = ledgerApi;
 const { formatStatus, snapshotStatus } = await import("../lib/status.ts");
 
-test("createLedger returns default walking-skeleton state", () => {
+test("createLedger returns default enforcement state", () => {
   const ledger = createLedger();
 
   assert.equal(ledger.policyName, "default");
-  assert.equal(ledger.guardMode, "monitor");
+  assert.equal(ledger.guardMode, "enforce");
   assert.deepEqual(ledger.recentDecisions, []);
   assert.deepEqual(ledger.registeredServices, []);
 });

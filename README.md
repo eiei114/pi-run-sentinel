@@ -16,7 +16,7 @@
 - High-confidence shell hazards are blocked before their tool executes, with a correction explaining a safe alternative
 - Local server candidates remain allowed and produce a visible warning when Pi UI notifications are available
 - Pure classifier and ledger modules are testable without launching shell commands
-- Default guard mode `monitor` with policy `default`
+- Default guard mode `enforce` with policy `default`
 
 The guard only intercepts pre-execution shell tool calls. It does not enforce pending work at final-response or session-end time, and does not supervise processes after a tool returns.
 
@@ -48,7 +48,7 @@ Then run:
 /run-sentinel:status
 ```
 
-Expected output includes `guard mode: monitor`, `recent decisions: 0`, `last decisions:`, and `registered services: 0`.
+Expected output includes `guard mode: enforce`, `recent decisions: 0`, `last decisions:`, and `registered services: 0`.
 
 ## Development
 

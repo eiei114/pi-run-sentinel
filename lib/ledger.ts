@@ -30,7 +30,7 @@ export interface RunSentinelLedger {
 }
 
 const DEFAULT_POLICY_NAME = "default";
-const DEFAULT_GUARD_MODE: GuardMode = "monitor";
+const DEFAULT_GUARD_MODE: GuardMode = "enforce";
 
 /**
  * Create a fresh in-memory ledger for the walking skeleton.
