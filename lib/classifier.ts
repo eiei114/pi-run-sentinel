@@ -28,6 +28,8 @@ interface CommandInfo {
   args: string[];
 }
 
+type ShellDialect = "posix" | "cmd";
+
 const MESSAGES: Record<SentinelReasonCode, string> = {
   background_operator:
     "This backgrounds work. Run it in the foreground and collect its result before ending the run.",
@@ -93,12 +95,90 @@ function isEscaped(command: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
-function splitCommandSegments(command: string): string[] {
-  return command.split(/(?:&&|\|\||[;&|\r\n])+/).filter((part) => part.trim() !== "");
+function splitCommandSegments(command: string, dialect: ShellDialect = "posix"): string[] {
+  const separators =
+    dialect === "cmd" ? /(?:&&|\|\||[&|\r\n])+/ : /(?:&&|\|\||[;&|\r\n])+/;
+  return command.split(separators).filter((part) => part.trim() !== "");
 }
 
-function commandInfo(segment: string): CommandInfo | undefined {
-  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+const SUDO_OPTIONS_WITH_VALUE = new Set([
+  "-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt",
+  "-C", "--close-from", "-D", "--chdir", "-R", "--chroot", "-T",
+  "--command-timeout", "-r", "--role", "-t", "--type", "-U", "--other-user",
+]);
+const ENV_OPTIONS_WITH_VALUE = new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]);
+
+function skipOption(tokens: string[], index: number, valueOptions: Set<string>): number {
+  const token = tokens[index];
+  const option = token.split("=", 1)[0];
+  return valueOptions.has(option) && option === token ? index + 2 : index + 1;
+}
+
+function skipSudoOptions(tokens: string[], index: number): number {
+  let cursor = index + 1;
+  while (cursor < tokens.length) {
+    const token = tokens[cursor];
+    if (token === "--") return cursor + 1;
+    if (token === "-" || !token.startsWith("-")) return cursor;
+    cursor = skipOption(tokens, cursor, SUDO_OPTIONS_WITH_VALUE);
+  }
+  return cursor;
+}
+
+function skipEnvOptions(tokens: string[], index: number): number {
+  let cursor = index + 1;
+  while (cursor < tokens.length) {
+    const token = tokens[cursor];
+    if (/^[A-Za-z_][A-Za-z0-9_]*=.*/.test(token)) {
+      cursor += 1;
+      continue;
+    }
+    if (token === "--") return cursor + 1;
+    if (token === "-" || !token.startsWith("-")) return cursor;
+    cursor = skipOption(tokens, cursor, ENV_OPTIONS_WITH_VALUE);
+  }
+  return cursor;
+}
+
+function skipNiceOptions(tokens: string[], index: number): number {
+  let cursor = index + 1;
+  while (cursor < tokens.length) {
+    const token = tokens[cursor];
+    if (token === "--") return cursor + 1;
+    if (token === "-n" || token === "--adjustment") return cursor + 2;
+    if ((token.startsWith("-n") && token.length > 2) || token.startsWith("--adjustment=")) {
+      cursor += 1;
+      continue;
+    }
+    if (token === "-" || !token.startsWith("-")) return cursor;
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function skipTimeoutOptions(tokens: string[], index: number): number {
+  let cursor = index + 1;
+  while (cursor < tokens.length) {
+    const token = tokens[cursor];
+    if (token === "--") return cursor + 1;
+    if (token === "-k" || token === "--kill-after" || token === "-s" || token === "--signal") {
+      cursor += 2;
+      continue;
+    }
+    if (
+      token.startsWith("--kill-after=") || token.startsWith("--signal=") ||
+      (token.startsWith("-k") && token.length > 2) || (token.startsWith("-s") && token.length > 2)
+    ) {
+      cursor += 1;
+      continue;
+    }
+    if (token === "-" || !token.startsWith("-")) return cursor + 1;
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function commandStart(tokens: string[]): number {
   let index = 0;
 
   while (index < tokens.length) {
@@ -109,19 +189,35 @@ function commandInfo(segment: string): CommandInfo | undefined {
     }
 
     const wrapper = token.toLowerCase();
-    if (["sudo", "command", "exec", "time", "nice"].includes(wrapper)) {
+    if (["command", "exec", "time"].includes(wrapper)) {
       index += 1;
       continue;
     }
+    if (wrapper === "sudo") {
+      index = skipSudoOptions(tokens, index);
+      continue;
+    }
     if (wrapper === "env") {
-      index += 1;
-      while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(tokens[index])) {
-        index += 1;
-      }
+      index = skipEnvOptions(tokens, index);
+      continue;
+    }
+    if (wrapper === "nice") {
+      index = skipNiceOptions(tokens, index);
+      continue;
+    }
+    if (wrapper === "timeout") {
+      index = skipTimeoutOptions(tokens, index);
       continue;
     }
     break;
   }
+
+  return index;
+}
+
+function commandInfo(segment: string): CommandInfo | undefined {
+  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  const index = commandStart(tokens);
 
   if (index >= tokens.length) return undefined;
 
@@ -158,8 +254,8 @@ function hasBackgroundOperator(command: string): boolean {
   return false;
 }
 
-function detachedProcessEvidence(command: string): string | undefined {
-  for (const segment of splitCommandSegments(command)) {
+function detachedProcessEvidence(command: string, dialect: ShellDialect): string | undefined {
+  for (const segment of splitCommandSegments(command, dialect)) {
     const info = commandInfo(segment);
     if (!info) continue;
 
@@ -182,8 +278,8 @@ function detachedProcessEvidence(command: string): string | undefined {
   return undefined;
 }
 
-function hasCiWatcher(command: string): boolean {
-  for (const segment of splitCommandSegments(command)) {
+function hasCiWatcher(command: string, dialect: ShellDialect): boolean {
+  for (const segment of splitCommandSegments(command, dialect)) {
     const info = commandInfo(segment);
     if (!info || info.executable !== "gh") continue;
 
@@ -222,8 +318,8 @@ function devScriptEvidence(info: CommandInfo): string | undefined {
   return undefined;
 }
 
-function serviceCandidateEvidence(command: string): string | undefined {
-  for (const segment of splitCommandSegments(command)) {
+function serviceCandidateEvidence(command: string, dialect: ShellDialect): string | undefined {
+  for (const segment of splitCommandSegments(command, dialect)) {
     const info = commandInfo(segment);
     if (!info) continue;
 
@@ -263,7 +359,7 @@ function serviceCandidateEvidence(command: string): string | undefined {
   return undefined;
 }
 
-function shellCommandSegments(command: string): string[][] {
+function shellCommandSegments(command: string, dialect: ShellDialect = "posix"): string[][] {
   const segments: string[][] = [];
   let tokens: string[] = [];
   let token = "";
@@ -320,7 +416,7 @@ function shellCommandSegments(command: string): string[][] {
       continue;
     }
 
-    if (/[;&|\r\n]/.test(char)) {
+    if (/[&|\r\n]/.test(char) || (dialect !== "cmd" && char === ";")) {
       finishSegment();
       if ((char === "&" || char === "|") && command[index + 1] === char) index += 1;
     } else if (/\s/.test(char)) {
@@ -336,29 +432,13 @@ function shellCommandSegments(command: string): string[][] {
   return segments;
 }
 
-function nestedShellPayload(tokens: string[]): string | undefined {
-  let index = 0;
+interface NestedShellPayload {
+  command: string;
+  dialect: ShellDialect;
+}
 
-  while (index < tokens.length) {
-    if (/^[A-Za-z_][A-Za-z0-9_]*=.*/.test(tokens[index])) {
-      index += 1;
-      continue;
-    }
-    const wrapper = tokens[index].toLowerCase();
-    if (["sudo", "command", "exec", "time", "nice"].includes(wrapper)) {
-      index += 1;
-      continue;
-    }
-    if (wrapper === "env") {
-      index += 1;
-      while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(tokens[index])) {
-        index += 1;
-      }
-      continue;
-    }
-    break;
-  }
-
+function nestedShellPayload(tokens: string[]): NestedShellPayload | undefined {
+  const index = commandStart(tokens);
   if (index >= tokens.length) return undefined;
 
   const executable = tokens[index]
@@ -384,7 +464,9 @@ function nestedShellPayload(tokens: string[]): string | undefined {
   const payload = ["cmd", "powershell", "pwsh"].includes(executable)
     ? commandArgs.join(" ")
     : commandArgs[0];
-  return payload?.trim() ? payload : undefined;
+  return payload?.trim()
+    ? { command: payload, dialect: executable === "cmd" ? "cmd" : "posix" }
+    : undefined;
 }
 
 function decision(
@@ -395,19 +477,19 @@ function decision(
   return { action, reasonCode, message: MESSAGES[reasonCode], evidence };
 }
 
-function classifyShellCommandDirect(command: string): ShellCommandDecision {
+function classifyShellCommandDirect(command: string, dialect: ShellDialect): ShellCommandDecision {
   const searchableCommand = maskQuotedContent(command);
 
-  if (hasBackgroundOperator(searchableCommand)) {
+  if (dialect !== "cmd" && hasBackgroundOperator(searchableCommand)) {
     return decision("block", "background_operator", ["&"]);
   }
 
-  const detachedEvidence = detachedProcessEvidence(searchableCommand);
+  const detachedEvidence = detachedProcessEvidence(searchableCommand, dialect);
   if (detachedEvidence) {
     return decision("block", "detached_process", [detachedEvidence]);
   }
 
-  if (hasCiWatcher(searchableCommand)) {
+  if (hasCiWatcher(searchableCommand, dialect)) {
     const evidence = /\bgh\s+run\s+watch\b/i.test(searchableCommand)
       ? "gh run watch"
       : "gh pr checks --watch";
@@ -415,14 +497,14 @@ function classifyShellCommandDirect(command: string): ShellCommandDecision {
   }
 
   if (
-    splitCommandSegments(searchableCommand).some((segment) => commandInfo(segment)?.executable === "watch") ||
+    splitCommandSegments(searchableCommand, dialect).some((segment) => commandInfo(segment)?.executable === "watch") ||
     hasSleepLoop(searchableCommand)
   ) {
     const evidence = hasSleepLoop(searchableCommand) ? "loop + sleep" : "watch";
     return decision("block", "watch_or_poll_loop", [evidence]);
   }
 
-  const serviceEvidence = serviceCandidateEvidence(searchableCommand);
+  const serviceEvidence = serviceCandidateEvidence(searchableCommand, dialect);
   if (serviceEvidence) {
     return decision("warn", "service_handoff_candidate", [serviceEvidence]);
   }
@@ -430,15 +512,19 @@ function classifyShellCommandDirect(command: string): ShellCommandDecision {
   return decision("allow", "safe_foreground");
 }
 
-function classifyShellCommandAtDepth(command: string, depth: number): ShellCommandDecision {
-  let result = classifyShellCommandDirect(command);
+function classifyShellCommandAtDepth(
+  command: string,
+  depth: number,
+  dialect: ShellDialect = "posix",
+): ShellCommandDecision {
+  let result = classifyShellCommandDirect(command, dialect);
   if (depth >= 8) return result;
 
-  for (const tokens of shellCommandSegments(command)) {
-    const payload = nestedShellPayload(tokens);
-    if (!payload) continue;
+  for (const tokens of shellCommandSegments(command, dialect)) {
+    const nested = nestedShellPayload(tokens);
+    if (!nested) continue;
 
-    const nestedResult = classifyShellCommandAtDepth(payload, depth + 1);
+    const nestedResult = classifyShellCommandAtDepth(nested.command, depth + 1, nested.dialect);
     const nestedSeverity = nestedResult.action === "block" ? 2 : nestedResult.action === "warn" ? 1 : 0;
     const currentSeverity = result.action === "block" ? 2 : result.action === "warn" ? 1 : 0;
     if (nestedSeverity > currentSeverity) result = nestedResult;

@@ -48,6 +48,26 @@ test("blocks hazards inside nested shell command payloads", () => {
   assertDecision('bash -c "npm test"', "allow", "safe_foreground", []);
 });
 
+test("finds nested shell hazards behind wrapper options", () => {
+  assertDecision('sudo -u ci bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision('env -i bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision('nice -n 10 bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision('timeout 10 bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision('timeout -k 2s 10 bash -c "npm test &"', "block", "background_operator", ["&"]);
+  assertDecision('timeout 10 bash -c "npm test"', "allow", "safe_foreground", []);
+});
+
+test("uses cmd.exe command-separator semantics for nested payloads", () => {
+  assertDecision('cmd /c "npm test & echo done"', "allow", "safe_foreground", []);
+  assertDecision('cmd /c "npm test && echo done"', "allow", "safe_foreground", []);
+  assertDecision(
+    'cmd /c "npm test & start /b node app.js"',
+    "block",
+    "detached_process",
+    ["start /b"],
+  );
+});
+
 test("blocks CI watchers and generic watch commands", () => {
   assertDecision(
     "gh pr checks 123 --watch",
