@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - Unreleased
+
+### Added
+
+- Compact run-owned work safety reminder injected before each agent turn
+- Block and warning counts in `/run-sentinel:status` and a compact widget listing counts and registered service names
+
+### Fixed
+
+- Report monitor-mode block decisions as would-block instead of counting them as enforced blocks
+
 ## 0.3.0 - Unreleased
 
 ### Added

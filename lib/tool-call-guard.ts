@@ -39,10 +39,13 @@ export function createToolCallGuard(
     const result = classifyShellCommand(command);
     const at = now().toISOString();
     const evidence = [...result.evidence];
+    const decisionLabel = result.action === "block" && ledger.guardMode === "monitor"
+      ? "would block"
+      : result.action;
     ledger.recentDecisions.push({
       id: `guard-${ledger.recentDecisions.length + 1}`,
       at,
-      summary: `${result.action}: ${result.reasonCode}${evidence.length > 0 ? ` (${evidence.join(", ")})` : ""}`,
+      summary: `${decisionLabel}: ${result.reasonCode}${evidence.length > 0 ? ` (${evidence.join(", ")})` : ""}`,
       action: result.action,
       reasonCode: result.reasonCode,
       evidence,
