@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const cliPath = fileURLToPath(new URL(
   "../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
@@ -13,8 +13,8 @@ const extensionPath = fileURLToPath(new URL("../extensions", import.meta.url));
 const probeTimeoutMs = 15_000;
 const cleanupGraceMs = 1_000;
 
-function startRpcProcess(cwd, agentDir) {
-  const child = spawn(process.execPath, [
+export function startRpcProcess(cwd, agentDir, spawnProcess = spawn) {
+  const child = spawnProcess(process.execPath, [
     cliPath,
     "--mode", "rpc",
     "--no-session",
@@ -56,6 +56,15 @@ function startRpcProcess(cwd, agentDir) {
     }
   };
 
+  const rejectPendingWaiters = (error) => {
+    processError ??= error;
+    for (const waiter of waiters) {
+      waiters.delete(waiter);
+      clearTimeout(waiter.timer);
+      waiter.reject(processError);
+    }
+  };
+
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk;
@@ -66,7 +75,7 @@ function startRpcProcess(cwd, agentDir) {
       try {
         publish(JSON.parse(line));
       } catch (error) {
-        processError = new Error(`Pi emitted invalid RPC JSON: ${line}`, { cause: error });
+        rejectPendingWaiters(new Error(`Pi emitted invalid RPC JSON: ${line}`, { cause: error }));
       }
     }
   });
@@ -75,7 +84,7 @@ function startRpcProcess(cwd, agentDir) {
     stderr += chunk;
   });
   child.once("error", (error) => {
-    processError = error;
+    rejectPendingWaiters(error);
   });
   child.once("close", (code, signal) => {
     exit = { code, signal };
@@ -223,28 +232,34 @@ function verifyHostShell() {
   return "native_shell_boundary";
 }
 
-const root = await mkdtemp(join(tmpdir(), "pi-run-sentinel-rpc-smoke-"));
-const cwd = join(root, "project");
-const agentDir = join(root, "agent");
-await mkdir(cwd);
-await mkdir(agentDir);
+async function main() {
+  const root = await mkdtemp(join(tmpdir(), "pi-run-sentinel-rpc-smoke-"));
+  const cwd = join(root, "project");
+  const agentDir = join(root, "agent");
+  await mkdir(cwd);
+  await mkdir(agentDir);
 
-try {
-  const first = await verifyProcess(cwd, agentDir, "initial");
-  const reloaded = await verifyProcess(cwd, agentDir, "reloaded");
-  const errorPath = verifyErrorPath();
-  const hostShell = verifyHostShell();
-  console.log(JSON.stringify({
-    extension_load: first.extensionRegistered ? "extension_registered" : "failed",
-    happy_path: first.featureResponse ? "feature_response" : "failed",
-    error_path: errorPath,
-    reload_cleanup: {
-      reloaded_extension_registered: reloaded.extensionRegistered,
-      reloaded_feature_response: reloaded.featureResponse,
-      clean_shutdown: first.cleanShutdown && reloaded.cleanShutdown,
-    },
-    host_shell: hostShell,
-  }, null, 2));
-} finally {
-  await rm(root, { recursive: true, force: true });
+  try {
+    const first = await verifyProcess(cwd, agentDir, "initial");
+    const reloaded = await verifyProcess(cwd, agentDir, "reloaded");
+    const errorPath = verifyErrorPath();
+    const hostShell = verifyHostShell();
+    console.log(JSON.stringify({
+      extension_load: first.extensionRegistered ? "extension_registered" : "failed",
+      happy_path: first.featureResponse ? "feature_response" : "failed",
+      error_path: errorPath,
+      reload_cleanup: {
+        reloaded_extension_registered: reloaded.extensionRegistered,
+        reloaded_feature_response: reloaded.featureResponse,
+        clean_shutdown: first.cleanShutdown && reloaded.cleanShutdown,
+      },
+      host_shell: hostShell,
+    }, null, 2));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
 }
