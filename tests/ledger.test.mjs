@@ -26,6 +26,11 @@ test("snapshotStatus exposes guard mode and counts", () => {
   });
   ledger.registeredServices.push({
     name: "classifier",
+    command: "npm run dev",
+    logPath: "./logs/dev.log",
+    stopInstruction: "kill 1234",
+    readinessEvidence: "HTTP 200 from http://localhost:3000/health",
+    survival: "best_effort",
     registeredAt: "2026-09-15T00:00:00.000Z",
   });
 
@@ -35,6 +40,15 @@ test("snapshotStatus exposes guard mode and counts", () => {
     recentDecisionsCount: 1,
     recentDecisions: [{ at: "2026-09-15T00:00:00.000Z", summary: "allowed shell probe" }],
     registeredServicesCount: 1,
+    registeredServices: [{
+      name: "classifier",
+      command: "npm run dev",
+      logPath: "./logs/dev.log",
+      stopInstruction: "kill 1234",
+      readinessEvidence: "HTTP 200 from http://localhost:3000/health",
+      survival: "best_effort",
+      registeredAt: "2026-09-15T00:00:00.000Z",
+    }],
   });
 });
 
@@ -64,10 +78,12 @@ test("formatStatus renders guard mode and counts", () => {
     recentDecisionsCount: 0,
     recentDecisions: [],
     registeredServicesCount: 0,
+    registeredServices: [],
   });
 
   assert.match(text, /guard mode: monitor/);
   assert.match(text, /recent decisions: 0/);
   assert.match(text, /last decisions:\n    none/);
   assert.match(text, /registered services: 0/);
+  assert.match(text, /service handoffs:\n    none/);
 });

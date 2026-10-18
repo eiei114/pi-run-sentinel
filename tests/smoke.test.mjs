@@ -28,10 +28,14 @@ test("extension module loads and registers run-sentinel:status command", () => {
   assert.equal(typeof registerExtension, "function");
 
   const commands = [];
+  const tools = [];
   registerExtension({
     on() {},
     registerCommand(name, spec) {
       commands.push({ name, ...spec });
+    },
+    registerTool(tool) {
+      tools.push(tool);
     },
   });
 
@@ -39,4 +43,8 @@ test("extension module loads and registers run-sentinel:status command", () => {
   assert.equal(commands[0].name, "run-sentinel:status");
   assert.match(commands[0].description, /guard mode/i);
   assert.equal(typeof commands[0].handler, "function");
+  assert.equal(tools.length, 1);
+  assert.equal(tools[0].name, "run_sentinel_register_service");
+  assert.match(tools[0].description, /best-effort/i);
+  assert.equal(typeof tools[0].execute, "function");
 });

@@ -13,10 +13,17 @@
 ## Features
 
 - `/run-sentinel:status` shows guard mode, recent decision count and the latest decisions
+- `run_sentinel_register_service` records a typed handoff for a persistent service the user explicitly requested, including its log path, stop instruction and readiness evidence
 - High-confidence shell hazards are blocked before their tool executes, with a correction explaining a safe alternative
-- Local server candidates remain allowed and produce a visible warning when Pi UI notifications are available
+- Local server candidates remain allowed and produce a visible warning pointing to the service registration tool when Pi UI notifications are available
 - Pure classifier and ledger modules are testable without launching shell commands
 - Default guard mode `enforce` with policy `default`
+
+## Persistent service handoffs
+
+Use `run_sentinel_register_service` only when the user explicitly asked for a local service to remain available after this turn. Supply its name, command, durable log path, concrete stop instruction, readiness evidence, and the required `best_effort` survival acknowledgment; PID and URL are optional. The `/run-sentinel:status` output shows the registered details so the next person can find the logs and stop the service.
+
+This is a handoff record only: Run Sentinel does not start, supervise, or guarantee the service process. Survival is best-effort and is not guaranteed. Tests, builds, CI checks, CI polling, watchers, and other run-owned work cannot be reclassified as persistent services; run them in the foreground and collect their results before ending the run.
 
 The guard only intercepts pre-execution shell tool calls. It does not enforce pending work at final-response or session-end time, and does not supervise processes after a tool returns.
 
