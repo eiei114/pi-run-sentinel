@@ -27,6 +27,12 @@ This is a handoff record only: Run Sentinel does not start, supervise, or guaran
 
 The guard only intercepts pre-execution shell tool calls. It does not enforce pending work at final-response or session-end time, and does not supervise processes after a tool returns.
 
+## Startup reminder and status
+
+Before each agent turn, Run Sentinel appends a compact reminder to Pi's system prompt: finish run-owned work before ending the turn, avoid background-and-yield and watch/poll loops, and allow only user-requested persistent services to outlive the turn with readiness, log, and stop details. Service survival remains best-effort; tests, builds, and CI are not services.
+
+`/run-sentinel:status` reports guard mode, decision and block/warning counts, and registered service handoffs. In TUI/RPC modes, a small widget shows only block/warning counts and registered service names, never command logs. Guard decision history uses summaries rather than raw shell command text. Pi's `session_shutdown` event is for teardown, not a cancellable final-response check, so Run Sentinel does not enforce cleanup at turn end or guarantee service survival.
+
 ## Install
 
 This package is not published. Load it locally for dogfooding:

@@ -10,6 +10,8 @@ export interface RunSentinelStatusSnapshot {
   policyName: string;
   guardMode: GuardMode;
   recentDecisionsCount: number;
+  recentBlocksCount: number;
+  recentWarningsCount: number;
   recentDecisions: Pick<SentinelDecision, "at" | "summary">[];
   registeredServicesCount: number;
   registeredServices?: RegisteredService[];
@@ -23,6 +25,8 @@ export function snapshotStatus(ledger: RunSentinelLedger): RunSentinelStatusSnap
     policyName: ledger.policyName,
     guardMode: ledger.guardMode,
     recentDecisionsCount: ledger.recentDecisions.length,
+    recentBlocksCount: ledger.recentDecisions.filter(({ action }) => action === "block").length,
+    recentWarningsCount: ledger.recentDecisions.filter(({ action }) => action === "warn").length,
     recentDecisions: ledger.recentDecisions.slice(-5).map(({ at, summary }) => ({ at, summary })),
     registeredServicesCount: ledger.registeredServices.length,
     registeredServices: ledger.registeredServices.map((service) => ({ ...service })),
@@ -55,10 +59,26 @@ export function formatStatus(snapshot: RunSentinelStatusSnapshot): string {
     `  policy: ${snapshot.policyName}`,
     `  guard mode: ${snapshot.guardMode}`,
     `  recent decisions: ${snapshot.recentDecisionsCount}`,
+    `  recent blocks: ${snapshot.recentBlocksCount}`,
+    `  recent warnings: ${snapshot.recentWarningsCount}`,
     "  last decisions:",
     ...recentDecisions,
     `  registered services: ${snapshot.registeredServicesCount}`,
     "  service handoffs:",
     ...registeredServices,
   ].join("\n");
+}
+
+/** Render a compact widget with decision counts and service names only. */
+export function formatStatusWidget(snapshot: RunSentinelStatusSnapshot): string[] {
+  const hazards = [
+    ...(snapshot.recentBlocksCount > 0 ? [`${snapshot.recentBlocksCount} blocked`] : []),
+    ...(snapshot.recentWarningsCount > 0 ? [`${snapshot.recentWarningsCount} warned`] : []),
+  ];
+  const serviceNames = (snapshot.registeredServices ?? []).map(({ name }) => name);
+
+  return [
+    `Run Sentinel hazards: ${hazards.length > 0 ? hazards.join(" · ") : "none"}`,
+    `Registered services: ${serviceNames.length > 0 ? serviceNames.join(", ") : "none"}`,
+  ];
 }

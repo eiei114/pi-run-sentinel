@@ -1,6 +1,6 @@
 {
   "name": "pi-run-sentinel",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Run-owned work safety guard for Pi with shell classification and tool-call interception",
   "type": "module",
   "license": "MIT",
