@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
@@ -15,8 +15,23 @@ import { createToolCallGuard } from "../lib/tool-call-guard.ts";
 
 const extensionPath = fileURLToPath(new URL("../extensions", import.meta.url));
 
-async function loadPiExtension(cwd, agentDir) {
-  const loaded = await discoverAndLoadExtensions([extensionPath], cwd, agentDir);
+async function loadPiExtension(cwd, agentDir, guardMode) {
+  let extensionPaths = [extensionPath];
+  if (guardMode) {
+    const configuredExtensionPath = join(agentDir, `${guardMode}-extension`);
+    await mkdir(configuredExtensionPath);
+    const extensionModulePath = pathToFileURL(join(extensionPath, "index.ts")).href;
+    const ledgerModulePath = pathToFileURL(fileURLToPath(new URL("../lib/ledger.ts", import.meta.url))).href;
+    await writeFile(join(configuredExtensionPath, "index.ts"), [
+      `import registerRunSentinelExtension from ${JSON.stringify(extensionModulePath)};`,
+      `import { createLedger } from ${JSON.stringify(ledgerModulePath)};`,
+      `export default (pi) => registerRunSentinelExtension(pi, createLedger({ guardMode: ${JSON.stringify(guardMode)} }));`,
+      "",
+    ].join("\n"));
+    extensionPaths = [configuredExtensionPath];
+  }
+
+  const loaded = await discoverAndLoadExtensions(extensionPaths, cwd, agentDir);
   assert.deepEqual(loaded.errors, []);
 
   const runner = new ExtensionRunner(
@@ -140,6 +155,66 @@ test("guard modes off, monitor, and enforce control blocking", () => {
     );
     if (guardMode !== "off") {
       assert.equal(ledger.recentDecisions[0].action, "block");
+      assert.match(
+        ledger.recentDecisions[0].summary,
+        guardMode === "monitor" ? /^would block:/ : /^block:/,
+      );
     }
+  }
+});
+
+test("ExtensionRunner reports monitor decisions as would-block while enforce blocks", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-run-sentinel-guard-mode-"));
+  const runners = [];
+
+  try {
+    for (const guardMode of ["monitor", "enforce"]) {
+      const cwd = join(root, guardMode, "project");
+      const agentDir = join(root, guardMode, "agent");
+      await mkdir(cwd, { recursive: true });
+      await mkdir(agentDir, { recursive: true });
+
+      const runner = await loadPiExtension(cwd, agentDir, guardMode);
+      runners.push(runner);
+      const notifications = [];
+      const widgets = [];
+      runner.setUIContext({
+        notify(message, type) {
+          notifications.push({ message, type });
+        },
+        setWidget(key, lines, options) {
+          widgets.push({ key, lines, options });
+        },
+      }, "rpc");
+
+      const event = {
+        type: "tool_call",
+        toolCallId: `${guardMode}-block`,
+        toolName: "bash",
+        input: { command: "npm test &" },
+      };
+      const executed = [];
+      const result = await runner.emitToolCall(event);
+      if (!result?.block) executed.push(event);
+
+      const enforced = guardMode === "enforce";
+      assert.equal(result?.block ?? false, enforced, `${guardMode} block result`);
+      assert.equal(executed.length, enforced ? 0 : 1, `${guardMode} execution`);
+      assert.deepEqual(widgets.at(-1).lines, [
+        `Run Sentinel hazards: 1 ${enforced ? "blocked" : "would block"}`,
+        "Registered services: none",
+      ]);
+
+      const statusCommand = runner.getCommand("run-sentinel:status");
+      assert.ok(statusCommand);
+      await statusCommand.handler("", runner.createCommandContext());
+      const statusText = notifications.at(-1).message;
+      assert.match(statusText, new RegExp(`recent blocks: ${enforced ? 1 : 0}`));
+      assert.match(statusText, new RegExp(`recent would-block decisions: ${enforced ? 0 : 1}`));
+      assert.match(statusText, enforced ? /block: background_operator/ : /would block: background_operator/);
+    }
+  } finally {
+    for (const runner of runners) runner.invalidate("functional test cleanup");
+    await rm(root, { recursive: true, force: true });
   }
 });

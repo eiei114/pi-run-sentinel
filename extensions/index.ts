@@ -12,13 +12,15 @@ import { RUN_OWNED_WORK_SAFETY_PROMPT } from "../lib/prompt.ts";
 import { registerServiceHandoff } from "../lib/service-handoff.ts";
 import { formatStatus, formatStatusWidget, snapshotStatus } from "../lib/status.ts";
 import { createToolCallGuard } from "../lib/tool-call-guard.ts";
-
-const ledger = createLedger();
+import type { RunSentinelLedger } from "../lib/ledger.ts";
 
 /**
  * Register Run Sentinel commands with the Pi extension API.
  */
-export default function (pi: ExtensionAPI) {
+export default function (
+  pi: ExtensionAPI,
+  ledger: RunSentinelLedger = createLedger(),
+) {
   const guard = createToolCallGuard(ledger);
   const updateStatusWidget = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;

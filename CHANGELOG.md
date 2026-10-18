@@ -12,6 +12,10 @@
 
 - Skip quoted-content masking allocations for shell commands without quotes or comments.
 
+### Fixed
+
+- Report monitor-mode block decisions as would-block instead of counting them as enforced blocks
+
 ## 0.3.0 - Unreleased
 
 ### Added

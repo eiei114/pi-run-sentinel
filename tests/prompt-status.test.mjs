@@ -90,6 +90,7 @@ test("startup prompt and status summarize run safety without exposing raw comman
     assert.match(status, /guard mode: enforce/);
     assert.match(status, /recent decisions: 4/);
     assert.match(status, /recent blocks: 2/);
+    assert.match(status, /recent would-block decisions: 0/);
     assert.match(status, /recent warnings: 1/);
     assert.match(status, /registered services: 1/);
     assert.match(status, /docs server/);
