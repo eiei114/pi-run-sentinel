@@ -148,6 +148,7 @@ export function startRpcProcess(cwd, agentDir, spawnProcess = spawn) {
     } finally {
       clearTimeout(timer);
     }
+    if (processError) throw processError;
     assert.equal(result.code, 0, `Pi shutdown failed (${result.code}/${result.signal}). ${stderr}`);
     return result;
   };
