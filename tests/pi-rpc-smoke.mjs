@@ -65,19 +65,21 @@ export function startRpcProcess(cwd, agentDir, spawnProcess = spawn) {
     }
   };
 
+  const parseOutputLine = (line) => {
+    if (!line.trim()) return;
+    try {
+      publish(JSON.parse(line));
+    } catch (error) {
+      rejectPendingWaiters(new Error(`Pi emitted invalid RPC JSON: ${line}`, { cause: error }));
+    }
+  };
+
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk;
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        publish(JSON.parse(line));
-      } catch (error) {
-        rejectPendingWaiters(new Error(`Pi emitted invalid RPC JSON: ${line}`, { cause: error }));
-      }
-    }
+    for (const line of lines) parseOutputLine(line);
   });
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk) => {
@@ -87,6 +89,8 @@ export function startRpcProcess(cwd, agentDir, spawnProcess = spawn) {
     rejectPendingWaiters(error);
   });
   child.once("close", (code, signal) => {
+    parseOutputLine(stdoutBuffer);
+    stdoutBuffer = "";
     exit = { code, signal };
     resolveExit(exit);
     for (const waiter of waiters) {
