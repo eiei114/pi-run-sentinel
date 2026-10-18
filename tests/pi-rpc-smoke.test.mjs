@@ -36,3 +36,21 @@ test("malformed RPC output rejects a request with an active waiter", async () =>
   await assert.rejects(request, /Pi emitted invalid RPC JSON/);
   await rpc.stopAfterFailure();
 });
+
+test("malformed RPC output fails clean shutdown after the last waiter settles", async () => {
+  const child = new FakeChildProcess();
+  const rpc = startRpcProcess("", "", () => child);
+  const request = rpc.request("completed-request", { type: "prompt", message: "test" });
+
+  child.stdout.write(`${JSON.stringify({
+    type: "response",
+    id: "completed-request",
+    success: true,
+  })}\n`);
+  await request;
+  child.stdout.write("{malformed JSON}\n");
+
+  const close = rpc.closeCleanly();
+  child.emit("close", 0, null);
+  await assert.rejects(close, /Pi emitted invalid RPC JSON/);
+});
