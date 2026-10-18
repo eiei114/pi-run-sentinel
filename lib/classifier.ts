@@ -40,7 +40,7 @@ const MESSAGES: Record<SentinelReasonCode, string> = {
   ci_watch_without_deliverable:
     "This starts a CI watcher. Use one bounded foreground check only when its result is required; do not leave a watcher running.",
   service_handoff_candidate:
-    "This looks like a local server. Keep it foreground unless a persistent service was requested and its handoff is recorded.",
+    "This looks like a local server. Keep it foreground unless a persistent service was requested; then register it with run_sentinel_register_service. Survival is best-effort, not guaranteed.",
   registered_service_handoff:
     "This service has an explicit handoff.",
   safe_foreground: "No run-owned background or polling hazard was detected.",

@@ -78,10 +78,9 @@ test("Pi tool_call guard blocks before execution, records decisions, and reloads
     const warned = await dispatch("powershell", { command: "npm run dev" });
     assert.equal(warned.blocked, false);
     assert.equal(executed.length, 1, "warn decisions remain executable");
-    assert.deepEqual(notifications.at(-1), {
-      message: "Run Sentinel warning: This looks like a local server. Keep it foreground unless a persistent service was requested and its handoff is recorded.",
-      type: "warning",
-    });
+    assert.equal(notifications.at(-1).type, "warning");
+    assert.match(notifications.at(-1).message, /run_sentinel_register_service/);
+    assert.match(notifications.at(-1).message, /best-effort/i);
 
     const allowed = await dispatch("bash", { command: "gh pr checks 123" });
     assert.equal(allowed.blocked, false);

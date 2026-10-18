@@ -19,6 +19,13 @@ export interface SentinelDecision {
 
 export interface RegisteredService {
   name: string;
+  command: string;
+  pid?: number;
+  url?: string;
+  logPath: string;
+  stopInstruction: string;
+  readinessEvidence: string;
+  survival: "best_effort";
   registeredAt: string;
 }
 

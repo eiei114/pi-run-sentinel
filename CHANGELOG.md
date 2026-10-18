@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - Unreleased
+
+### Added
+
+- Typed `run_sentinel_register_service` handoffs with validated readiness, log, stop, optional PID/URL, and best-effort survival details displayed by `/run-sentinel:status`
+
 ## 0.2.0 - Unreleased
 
 ### Added
