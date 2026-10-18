@@ -39,6 +39,7 @@ test("snapshotStatus exposes guard mode and counts", () => {
     guardMode: "enforce",
     recentDecisionsCount: 1,
     recentBlocksCount: 0,
+    recentWouldBlockCount: 0,
     recentWarningsCount: 0,
     recentDecisions: [{ at: "2026-09-15T00:00:00.000Z", summary: "allowed shell probe" }],
     registeredServicesCount: 1,
@@ -52,6 +53,25 @@ test("snapshotStatus exposes guard mode and counts", () => {
       registeredAt: "2026-09-15T00:00:00.000Z",
     }],
   });
+});
+
+test("snapshotStatus reports monitor-mode block decisions as would-block", () => {
+  const ledger = createLedger({ guardMode: "monitor" });
+  ledger.recentDecisions.push({
+    id: "d1",
+    at: "2026-09-15T00:00:00.000Z",
+    summary: "would block: background_operator",
+    action: "block",
+  });
+
+  const snapshot = snapshotStatus(ledger);
+  assert.equal(snapshot.recentBlocksCount, 0);
+  assert.equal(snapshot.recentWouldBlockCount, 1);
+  assert.match(formatStatus(snapshot), /recent would-block decisions: 1/);
+  assert.deepEqual(formatStatusWidget(snapshot), [
+    "Run Sentinel hazards: 1 would block",
+    "Registered services: none",
+  ]);
 });
 
 test("ledger keeps its existing status exports as compatibility re-exports", () => {
@@ -100,6 +120,7 @@ test("formatStatusWidget contains only hazard counts and registered service name
     guardMode: "enforce",
     recentDecisionsCount: 3,
     recentBlocksCount: 2,
+    recentWouldBlockCount: 0,
     recentWarningsCount: 1,
     recentDecisions: [],
     registeredServicesCount: 1,
