@@ -106,6 +106,7 @@ test("Pi service tool records a handoff, reports validation errors, and status e
       notify(message, type) {
         notifications.push({ message, type });
       },
+      setWidget() {},
     }, "rpc");
 
     const serviceTool = runner.getAllRegisteredTools().find(

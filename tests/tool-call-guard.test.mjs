@@ -45,6 +45,7 @@ test("Pi tool_call guard blocks before execution, records decisions, and reloads
       notify(message, type) {
         notifications.push({ message, type });
       },
+      setWidget() {},
     }, "rpc");
 
     assert.equal(runner.hasHandlers("tool_call"), true);

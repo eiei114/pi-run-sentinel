@@ -5,11 +5,12 @@
  * before Pi executes them.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { createLedger } from "../lib/ledger.ts";
+import { RUN_OWNED_WORK_SAFETY_PROMPT } from "../lib/prompt.ts";
 import { registerServiceHandoff } from "../lib/service-handoff.ts";
-import { formatStatus, snapshotStatus } from "../lib/status.ts";
+import { formatStatus, formatStatusWidget, snapshotStatus } from "../lib/status.ts";
 import { createToolCallGuard } from "../lib/tool-call-guard.ts";
 
 const ledger = createLedger();
@@ -18,7 +19,26 @@ const ledger = createLedger();
  * Register Run Sentinel commands with the Pi extension API.
  */
 export default function (pi: ExtensionAPI) {
-  pi.on("tool_call", createToolCallGuard(ledger));
+  const guard = createToolCallGuard(ledger);
+  const updateStatusWidget = (ctx: ExtensionContext) => {
+    if (!ctx.hasUI) return;
+    ctx.ui.setWidget("run-sentinel-status", formatStatusWidget(snapshotStatus(ledger)), {
+      placement: "belowEditor",
+    });
+  };
+
+  pi.on("tool_call", (event, ctx) => {
+    const decisionCount = ledger.recentDecisions.length;
+    const result = guard(event, ctx);
+    if (ledger.recentDecisions.length !== decisionCount) updateStatusWidget(ctx);
+    return result;
+  });
+  pi.on("before_agent_start", (event, ctx) => {
+    updateStatusWidget(ctx);
+    return {
+      systemPrompt: `${event.systemPrompt}\n\n${RUN_OWNED_WORK_SAFETY_PROMPT}`,
+    };
+  });
 
   pi.registerTool({
     name: "run_sentinel_register_service",
@@ -43,8 +63,9 @@ export default function (pi: ExtensionAPI) {
       pid: Type.Optional(Type.Number({ minimum: 1, multipleOf: 1, description: "Optional process ID." })),
       url: Type.Optional(Type.String({ description: "Optional absolute HTTP(S) service URL." })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const service = registerServiceHandoff(ledger, params);
+      updateStatusWidget(ctx);
       return {
         content: [{
           type: "text",
@@ -56,9 +77,10 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("run-sentinel:status", {
-    description: "Show Run Sentinel guard mode and recent decisions",
+    description: "Show Run Sentinel guard mode, recent block/warn counts, and service handoffs",
     handler: async (_args, ctx) => {
       const statusText = formatStatus(snapshotStatus(ledger));
+      updateStatusWidget(ctx);
 
       if (ctx.hasUI) {
         ctx.ui.notify(statusText, "info");
