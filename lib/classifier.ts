@@ -46,8 +46,12 @@ const MESSAGES: Record<SentinelReasonCode, string> = {
   safe_foreground: "No run-owned background or polling hazard was detected.",
 };
 
+const QUOTED_CONTENT_MARKER = /['"#]/;
+
 /** Replace quoted literals and shell comments while retaining token spacing. */
 function maskQuotedContent(command: string): string {
+  if (!QUOTED_CONTENT_MARKER.test(command)) return command;
+
   const chars = command.split("");
   let quote: "'" | '"' | null = null;
   let inComment = false;

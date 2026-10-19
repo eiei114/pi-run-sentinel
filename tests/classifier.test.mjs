@@ -79,6 +79,12 @@ test("blocks CI watchers and generic watch commands", () => {
   assertDecision("watch -n 1 git status", "block", "watch_or_poll_loop", ["watch"]);
 });
 
+test("checks later command segments for hazards and service candidates", () => {
+  assertDecision("npm test && nohup node server.js", "block", "detached_process", ["nohup"]);
+  assertDecision("npm test; gh run watch 123", "block", "ci_watch_without_deliverable", ["gh run watch"]);
+  assertDecision("npm test && npm run dev", "warn", "service_handoff_candidate", ["npm run dev"]);
+});
+
 test("blocks bash and PowerShell loops that sleep", () => {
   assertDecision(
     "while true; do gh pr checks; sleep 5; done",
@@ -117,4 +123,5 @@ test("warns for ambiguous local server commands", () => {
 test("allows one-shot status snapshots and ordinary foreground commands", () => {
   assertDecision("gh pr checks 123", "allow", "safe_foreground", []);
   assertDecision("npm run typecheck", "allow", "safe_foreground", []);
+  assertDecision("echo ok # nohup node server.js", "allow", "safe_foreground", []);
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - Unreleased
+
+### Performance
+
+- Skip quoted-content masking allocations for shell commands without quotes or comments.
+
 ## 0.3.0 - Unreleased
 
 ### Added
