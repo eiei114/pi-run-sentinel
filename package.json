@@ -1,6 +1,6 @@
 {
   "name": "pi-run-sentinel",
-  "version": "0.3.1",
+"version": "0.4.0",
   "description": "Run-owned work safety guard for Pi with shell classification and tool-call interception",
   "type": "module",
   "license": "MIT",
@@ -31,8 +31,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "ci": "npm run typecheck && npm test && npm run pack:check",
-    "pack:check": "npm pack --dry-run"
+    "ci": "npm run typecheck && npm test && npm run test:pi-smoke && npm run pack:check",
+    "pack:check": "npm pack --dry-run",
+    "test:pi-smoke": "node tests/pi-rpc-smoke.mjs"
   },
   "pi": {
     "extensions": [

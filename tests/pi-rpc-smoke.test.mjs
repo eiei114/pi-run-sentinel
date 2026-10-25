@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { PassThrough, Writable } from "node:stream";
+import test from "node:test";
+import { startRpcProcess } from "./pi-rpc-smoke.mjs";
+
+class FakeChildProcess extends EventEmitter {
+  constructor() {
+    super();
+    this.stdout = new PassThrough();
+    this.stderr = new PassThrough();
+    this.stdin = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+  }
+
+  kill() {
+    this.emit("close", null, "SIGTERM");
+  }
+}
+
+test("malformed RPC output rejects a request with an active waiter", async () => {
+  const child = new FakeChildProcess();
+  const rpc = startRpcProcess("", "", () => child);
+  const request = rpc.request("active-request", { type: "prompt", message: "test" });
+
+  child.stdout.write("{malformed JSON}\n");
+  child.stdout.write(`${JSON.stringify({
+    type: "response",
+    id: "active-request",
+    success: true,
+  })}\n`);
+
+  await assert.rejects(request, /Pi emitted invalid RPC JSON/);
+  await rpc.stopAfterFailure();
+});
+
+test("malformed RPC output fails clean shutdown after the last waiter settles", async () => {
+  const child = new FakeChildProcess();
+  const rpc = startRpcProcess("", "", () => child);
+  const request = rpc.request("completed-request", { type: "prompt", message: "test" });
+
+  child.stdout.write(`${JSON.stringify({
+    type: "response",
+    id: "completed-request",
+    success: true,
+  })}\n`);
+  await request;
+  child.stdout.write("{malformed JSON}\n");
+
+  const close = rpc.closeCleanly();
+  child.emit("close", 0, null);
+  await assert.rejects(close, /Pi emitted invalid RPC JSON/);
+});
+
+test("unterminated malformed RPC output fails clean shutdown at EOF", async () => {
+  const child = new FakeChildProcess();
+  const rpc = startRpcProcess("", "", () => child);
+  const request = rpc.request("completed-request", { type: "prompt", message: "test" });
+
+  child.stdout.write(`${JSON.stringify({
+    type: "response",
+    id: "completed-request",
+    success: true,
+  })}\n`);
+  await request;
+  child.stdout.write("{malformed JSON}");
+
+  const close = rpc.closeCleanly();
+  child.emit("close", 0, null);
+  await assert.rejects(close, /Pi emitted invalid RPC JSON/);
+});
